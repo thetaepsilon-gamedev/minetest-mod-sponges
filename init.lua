@@ -174,3 +174,19 @@ minetest.register_craft({
 	cooktime = 10,
 })
 
+-- mapgen: generate under water (TODO: biomes? like ocean)
+minetest.register_decoration({
+	deco_type = "simple",
+	decoration = node_wet,
+	place_on = "default:sand",
+	sidelen = 16,
+	fill_ratio = 0.00005,
+	y_max = -16,
+	y_min = -31000,
+	spawn_by = "default:water_source",
+	num_spawn_by = 4,
+	param2 = 255,
+	flags = "force_placement",
+	height = 5,
+})
+

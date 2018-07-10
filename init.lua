@@ -163,3 +163,14 @@ minetest.register_node(node_wet, {
 	groups = groups,
 	on_rightclick = wetsponge_on_rightclick,
 })
+
+-- dry out sponges via furnace.
+-- in future this may need balancing - sponges can hold a fair amount of water,
+-- and water is relatively hard to boil.
+minetest.register_craft({
+	type = "cooking",
+	output = node_dry,
+	recipe = node_wet,
+	cooktime = 10,
+})
+

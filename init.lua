@@ -2,6 +2,8 @@ local tex = function(n) return "sponge_"..n..".png" end
 
 local node_wet = "sponge:wet"
 local node_dry = "sponge:dry"
+local item_wet = "sponge:wet_item"
+local wet_meta = "ds2.minetest.sponge.wetness"
 
 
 
@@ -25,10 +27,11 @@ end
 local r = drain_radius
 local rw = function(v) return (v * 2) + 1 end
 local cube = function(v) return v*v*v end
+-- the node can never include itself
+local max_absorbed = cube(rw(r)) - 1
 -- sanity checking to ensure water value can fit inside 8-bit param2.
 -- we store it as (water - 1) as we have a separate block for dry.
--- additionally, the center of the area (the sponge itself) can never be water.
-assert((cube(rw(r)) - 2) <= 255, "selected radius total volume doesn't fit into param2")
+assert(max_absorbed <= 256, "selected radius total volume doesn't fit into param2")
 
 
 
@@ -85,6 +88,38 @@ if buckets_enabled then
 	end
 else
 	wetsponge_on_rightclick = function() end
+end
+
+
+
+
+-- when a wet sponge item is placed: read back the level from it's metadata.
+-- if it's absent, assume it's the maximum as determined by radius.
+-- then, set itemstack to zero and place wet node,
+-- but only if placed in air for now.
+local n = {}
+local setnodeptnn = function(pos, name, param2)
+	n.name = name
+	n.param2 = param2
+	return minetest.set_node(pos, n)
+end
+local wet_sponge_on_place = function(itemstack, placer, pointed)
+	if pointed.type ~= "node" then return end
+	local target = pointed.above
+	local old = minetest.get_node(target)
+	if old.name ~= "air" then return end
+
+	local meta = itemstack:get_meta()
+	local level = meta:get_int(wet_meta)
+	if level == 0 then level = max_absorbed end
+	-- if for some daft reason the values are out of range, clamp them
+	if level < 0 then level = 1 end
+	if level > max_absorbed then level = max_absorbed end
+
+	local param2 = level - 1
+	setnodeptnn(target, node_wet, param2)
+	itemstack:set_count(0)
+	return itemstack
 end
 
 
@@ -160,8 +195,19 @@ minetest.register_node(node_dry, {
 minetest.register_node(node_wet, {
 	description = "Wet sponge block (HACKERRRRR)",
 	tiles = { tex("wet") },
-	groups = groups,
+	groups = {
+		oddly_breakable_by_hand = 3,
+		not_in_creative_inventory = 1,
+	},
 	on_rightclick = wetsponge_on_rightclick,
+})
+
+-- the wet item: used to keep track of capacity
+minetest.register_craftitem(item_wet, {
+	description = "Wet sponge (pre-filled)",
+	stack_max = 1,
+	inventory_image = tex("wet_item"),
+	on_place = wet_sponge_on_place,
 })
 
 -- dry out sponges via furnace.

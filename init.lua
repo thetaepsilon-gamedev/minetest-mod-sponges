@@ -1,6 +1,9 @@
 local tex = function(n) return "sponge_"..n..".png" end
 
 local node_wet = "sponge:wet"
+local node_dry = "sponge:dry"
+
+
 
 
 
@@ -29,7 +32,66 @@ assert((cube(rw(r)) - 2) <= 255, "selected radius total volume doesn't fit into 
 
 
 
--- placement and removal logic
+
+
+-- ways to get water out of a wet sponge.
+local wetsponge_on_rightclick
+-- check if buckets is enabled by looking at their item defs
+local empty = "bucket:bucket_empty"
+local full = "bucket:bucket_water"
+local defs = minetest.registered_items
+local buckets_enabled = defs[empty] and defs[full]
+
+-- take a bucket from a player and give them back the wet one.
+-- returns the left-over itemstack, if any.
+local player_give_bucket = function(player, original)
+	local list = player:get_wield_list()
+	local inv = player:get_inventory()
+	local count = original:get_count()
+
+	local bucket = ItemStack(full)
+	if inv:room_for_item(list, bucket) then
+		count = count - 1
+		original:set_count(count)
+		inv:add_item(list, bucket)
+	end
+
+	return original
+end
+
+local wet_replace = { name = node_wet }
+local dry_replace = { name = node_dry }
+local dry_replace_notrigger = { name = node_dry, param2 = 1 }
+if buckets_enabled then
+	wetsponge_on_rightclick = function(pos, node, clicker, itemstack, pointed_thing)
+		if clicker:is_player() and itemstack:get_name() == empty then
+			-- do the necessary fiddling with the item stack
+			itemstack = player_give_bucket(clicker, itemstack)
+
+			-- decrement the count and revert to dry if necessary.
+			local count = node.param2
+			count = count - 1
+			local node
+			if count < 0 then
+				node = dry_replace_notrigger
+			else
+				wet_replace.param2 = count
+				node = wet_replace
+			end
+			minetest.set_node(pos, node)
+		end
+
+		return itemstack
+	end
+else
+	wetsponge_on_rightclick = function() end
+end
+
+
+
+
+
+-- placement logic for drainage
 local p = {}
 local air = { name = "air" }
 local try_drain = function(x, y, z)
@@ -44,8 +106,11 @@ local try_drain = function(x, y, z)
 	return is_water
 end
 
-local replace = { name = node_wet }
 local on_construct = function(pos)
+	-- we have to check our param2 to know whether it was placed by a player.
+	local node = minetest.get_node(pos)
+	if node.param2 > 0 then return end
+
 	local xc, yc, zc = pos.x, pos.y, pos.z
 	local count = 0
 	-- rip indentation
@@ -63,10 +128,12 @@ local on_construct = function(pos)
 	-- shouldn't be possible here, but guard anyway
 	assert(count < 256)
 	if count > 0 then
-		replace.param2 = count - 1
-		minetest.set_node(pos, replace)
+		wet_replace.param2 = count - 1
+		minetest.set_node(pos, wet_replace)
 	end
 end
+
+
 
 
 
@@ -84,7 +151,7 @@ local ifdrain = function(v)
 	return enable and v or nil
 end
 
-minetest.register_node("sponge:dry", {
+minetest.register_node(node_dry, {
 	description = "Dry sponge",
 	tiles = { tex("dry") },
 	groups = groups,
@@ -94,4 +161,5 @@ minetest.register_node(node_wet, {
 	description = "Wet sponge block (HACKERRRRR)",
 	tiles = { tex("wet") },
 	groups = groups,
+	on_rightclick = wetsponge_on_rightclick,
 })

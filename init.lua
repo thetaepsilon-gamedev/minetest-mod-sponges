@@ -93,6 +93,27 @@ end
 
 
 
+-- when someone breaks this block, create a wet sponge item.
+local air = { name = "air" }
+local l = {}
+local item_label_prefix = "Wet sponge "
+local handle_drop_single = function(pos, itemstack, digger)
+	l[1] = itemstack:to_string()
+	return minetest.handle_node_drops(pos, l, digger)
+end
+local wet_sponge_on_dig = function(pos, node, digger)
+	local itemstack = ItemStack(item_wet)
+	local count = node.param2 + 1
+	local meta = itemstack:get_meta()
+	meta:set_int(wet_meta, count)
+	meta:set_string("description", item_label_prefix.."(absorbed nodes: "..count..")")
+	handle_drop_single(pos, itemstack, digger)
+	minetest.set_node(pos, air)
+end
+
+
+
+
 -- when a wet sponge item is placed: read back the level from it's metadata.
 -- if it's absent, assume it's the maximum as determined by radius.
 -- then, set itemstack to zero and place wet node,
@@ -128,7 +149,6 @@ end
 
 -- placement logic for drainage
 local p = {}
-local air = { name = "air" }
 local try_drain = function(x, y, z)
 	p.x = x
 	p.y = y
@@ -200,11 +220,12 @@ minetest.register_node(node_wet, {
 		not_in_creative_inventory = 1,
 	},
 	on_rightclick = wetsponge_on_rightclick,
+	on_dig = wet_sponge_on_dig,
 })
 
 -- the wet item: used to keep track of capacity
 minetest.register_craftitem(item_wet, {
-	description = "Wet sponge (pre-filled)",
+	description = item_label_prefix .. "(pre-filled)",
 	stack_max = 1,
 	inventory_image = tex("wet_item"),
 	on_place = wet_sponge_on_place,
@@ -216,7 +237,7 @@ minetest.register_craftitem(item_wet, {
 minetest.register_craft({
 	type = "cooking",
 	output = node_dry,
-	recipe = node_wet,
+	recipe = item_wet,
 	cooktime = 10,
 })
 
